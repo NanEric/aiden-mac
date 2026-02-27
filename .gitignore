@@ -60,3 +60,15 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# macOS junk
+.DS_Store
+
+# SwiftPM local state
+.swiftpm/
+
+# local build/distribution artifacts
+dist/
+
+# local VictoriaMetrics runtime data
+victoria-metrics-data/
