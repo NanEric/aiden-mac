@@ -1,0 +1,61 @@
+name: release-sign-notarize
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version"
+        required: true
+        default: "1.0.0"
+
+jobs:
+  build-sign-notarize:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate dependency lock
+        run: installer/scripts/validate-dependency-lock.sh
+      - name: Build pkg payload and unsigned pkg
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          PKG_ID: com.aiden.mac
+          APP_SIGN_IDENTITY: ${{ secrets.APP_SIGN_IDENTITY }}
+          TRAY_BUNDLE_ID: com.aiden.traymac
+        run: |
+          test -n "$APP_SIGN_IDENTITY"
+          installer/scripts/build-pkg.sh
+      - name: Validate tray app bundle
+        run: |
+          APP="dist/payload/Applications/AidenTrayMac.app"
+          test -d "$APP"
+          plutil -lint "$APP/Contents/Info.plist"
+          test -x "$APP/Contents/MacOS/AidenTrayMac"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+      - name: Validate bootstrap agent binary
+        run: |
+          AGENT="dist/payload/Library/Application Support/Aiden/bootstrap/AidenRuntimeAgent"
+          test -x "$AGENT"
+          codesign --verify --strict --verbose=2 "$AGENT"
+      - name: Sign pkg
+        env:
+          INSTALLER_IDENTITY: ${{ secrets.INSTALLER_IDENTITY }}
+        run: |
+          test -n "$INSTALLER_IDENTITY"
+          productsign --sign "$INSTALLER_IDENTITY" dist/AidenMac-unsigned.pkg dist/AidenMac.pkg
+      - name: Notarize pkg
+        env:
+          AC_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+        run: |
+          test -n "$AC_PROFILE"
+          xcrun notarytool submit dist/AidenMac.pkg --keychain-profile "$AC_PROFILE" --wait
+      - name: Staple
+        run: |
+          xcrun stapler staple dist/AidenMac.pkg
+      - name: Verify package gatekeeper
+        run: |
+          spctl -a -t install -vv dist/AidenMac.pkg
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AidenMac-pkg
+          path: dist/AidenMac.pkg

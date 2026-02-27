@@ -1,0 +1,17 @@
+{
+  "version": "v2026.02.27",
+  "artifacts": {
+    "otelcol": {
+      "url": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.146.1/otelcol_0.146.1_darwin_arm64.tar.gz",
+      "sha256": "37d26a543e1c5f70117cac6759cc3a454e2d33e4700d1bbedfed1e06a4ca5f13",
+      "teamId": "",
+      "binary": "otelcol"
+    },
+    "victoriaMetrics": {
+      "url": "https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.136.0/victoria-metrics-darwin-arm64-v1.136.0.tar.gz",
+      "sha256": "6767d286de3c2de21c068cfc1c8d82b401b8bb1fc7d116054f6ad4094d407c26",
+      "teamId": "",
+      "binary": "victoria-metrics-prod"
+    }
+  }
+}

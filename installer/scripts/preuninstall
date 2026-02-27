@@ -1,0 +1,37 @@
+#!/bin/bash
+set -euo pipefail
+
+APP_NAME="Aiden"
+TRAY_APP_PATH="/Applications/AidenTrayMac.app"
+EXPECTED_BUNDLE_ID="com.aiden.traymac"
+console_user=$(stat -f '%Su' /dev/console 2>/dev/null || echo "")
+
+if [[ -n "$console_user" && "$console_user" != "root" ]]; then
+  user_home=$(dscl . -read "/Users/$console_user" NFSHomeDirectory | awk '{print $2}')
+  uid=$(id -u "$console_user")
+
+  AIDEN_ROOT="$user_home/Library/Application Support/$APP_NAME"
+  BIN_BASE="$AIDEN_ROOT/bin"
+  RUNTIME_BASE="$AIDEN_ROOT/runtime"
+  CONFIG_BASE="$AIDEN_ROOT/config"
+  LOG_BASE="$user_home/Library/Logs/$APP_NAME"
+  RUNTIME_LAUNCH_AGENT="$user_home/Library/LaunchAgents/com.aiden.runtimeagent.plist"
+  TRAY_LAUNCH_AGENT="$user_home/Library/LaunchAgents/com.aiden.tray.plist"
+
+  launchctl asuser "$uid" launchctl bootout "gui/$uid/com.aiden.runtimeagent" >/dev/null 2>&1 || true
+  launchctl asuser "$uid" launchctl bootout "gui/$uid/com.aiden.tray" >/dev/null 2>&1 || true
+
+  rm -f "$RUNTIME_LAUNCH_AGENT" "$TRAY_LAUNCH_AGENT"
+  rm -rf "$BIN_BASE" "$RUNTIME_BASE" "$CONFIG_BASE" "$LOG_BASE"
+else
+  echo "No logged-in non-root user found; skipping per-user cleanup" >&2
+fi
+
+if [[ -d "$TRAY_APP_PATH" ]]; then
+  bundle_id=$(defaults read "$TRAY_APP_PATH/Contents/Info" CFBundleIdentifier 2>/dev/null || echo "")
+  if [[ "$bundle_id" == "$EXPECTED_BUNDLE_ID" ]]; then
+    rm -rf "$TRAY_APP_PATH"
+  fi
+fi
+
+exit 0
