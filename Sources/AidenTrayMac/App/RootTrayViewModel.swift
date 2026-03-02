@@ -17,6 +17,7 @@ final class RootTrayViewModel: ObservableObject {
 
     private let agentClient = RuntimeAgentClient()
     private let agentLauncher = RuntimeAgentLauncher()
+    private let runtimeBootstrapService = RuntimeBootstrapService()
     private let userState = UserStateService()
     private var hasBootstrapped = false
 
@@ -28,6 +29,8 @@ final class RootTrayViewModel: ObservableObject {
         phase = .loading
         Task { @MainActor in
             do {
+                try runtimeBootstrapService.ensureRuntimeFiles()
+
                 if !(await agentClient.healthz()) {
                     if let launchError = agentLauncher.ensureStarted() {
                         phase = .startupError(launchError)

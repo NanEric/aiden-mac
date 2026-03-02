@@ -42,7 +42,7 @@ struct VmClient {
         let dataNode = obj?["data"] as? [String: Any]
         let result = dataNode?["result"] as? [[String: Any]]
         let metric = result?.first?["metric"] as? [String: Any]
-        guard let email = metric?["user.email"] as? String else { return nil }
+        guard let email = metric?["user_email"] as? String else { return nil }
         guard let value = result?.first?["value"] as? [Any], value.count >= 2 else {
             return UserSample(email: email, timestampSeconds: Date().timeIntervalSince1970)
         }

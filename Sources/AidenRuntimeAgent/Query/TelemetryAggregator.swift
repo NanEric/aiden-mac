@@ -26,7 +26,6 @@ struct TelemetryAggregator {
             let output = try await vmClient.queryValue(MetricsQueryBuilder.outputTokens(serviceName: service))
             let userSample = try await vmClient.queryLatestUser(MetricsQueryBuilder.currentUser(serviceName: service))
             let user = userSample?.email ?? "Unknown"
-            let knownUser = user != "Unknown"
             let activeDays: Int? = {
                 guard let timestamp = userSample?.timestampSeconds else { return nil }
                 let delta = max(0, Date().timeIntervalSince1970 - timestamp)
@@ -39,13 +38,13 @@ struct TelemetryAggregator {
 
             return TelemetrySnapshot(
                 provider: provider,
-                inputTokens: knownUser ? input : nil,
-                outputTokens: knownUser ? output : nil,
+                inputTokens: input,
+                outputTokens: output,
                 currentUserEmail: user,
-                userActiveDays: knownUser ? activeDays : nil,
+                userActiveDays: activeDays,
                 costUsd: cost,
-                contextM: knownUser ? contextM : nil,
-                contextPercent: knownUser ? contextPct : nil,
+                contextM: contextM,
+                contextPercent: contextPct,
                 status: "ONLINE",
                 updatedAt: Date()
             )

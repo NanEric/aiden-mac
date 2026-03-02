@@ -17,11 +17,18 @@ final class RuntimeAgentLauncher {
         }
 
         // Safe to call repeatedly; bootstrap may fail if already loaded.
-        _ = runLaunchctl(["bootstrap", domain, plistPath], allowFailure: true)
+        let bootstrap = runLaunchctl(["bootstrap", domain, plistPath], allowFailure: true)
 
         let kickstart = runLaunchctl(["kickstart", "-k", "\(domain)/\(label)"], allowFailure: true)
         if kickstart.exitCode != 0 {
-            return "Failed to start runtime agent: \(kickstart.output)"
+            let bootstrapOutput = bootstrap.output.isEmpty ? "(empty)" : bootstrap.output
+            let kickstartOutput = kickstart.output.isEmpty ? "(empty)" : kickstart.output
+            return """
+            Failed to start runtime agent.
+            plist: \(plistPath)
+            bootstrap(exit=\(bootstrap.exitCode)): \(bootstrapOutput)
+            kickstart(exit=\(kickstart.exitCode)): \(kickstartOutput)
+            """
         }
 
         return nil

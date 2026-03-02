@@ -3,14 +3,14 @@ import AidenShared
 
 enum MetricsQueryBuilder {
     static func inputTokens(serviceName: String) -> String {
-        "sum(gen_ai.client.token.usage_sum{gen_ai.token.type=\"input\",service.name=\"\(serviceName)\"})"
+        "sum(gen_ai_client_token_usage_sum{gen_ai_token_type=\"input\",job=\"\(serviceName)\"})"
     }
 
     static func outputTokens(serviceName: String) -> String {
-        "sum(gen_ai.client.token.usage_sum{gen_ai.token.type=\"output\",service.name=\"\(serviceName)\"})"
+        "sum(gen_ai_client_token_usage_sum{gen_ai_token_type=\"output\",job=\"\(serviceName)\"})"
     }
 
     static func currentUser(serviceName: String) -> String {
-        "topk(1,max by (user.email) (timestamp(gen_ai.client.token.usage_sum{service.name=\"\(serviceName)\",user.email!=\"\"})))"
+        "topk(1,max by (user_email) (timestamp(gen_ai_client_token_usage_sum{job=\"\(serviceName)\",user_email!=\"\"})))"
     }
 }
