@@ -33,5 +33,8 @@ struct SettingsView: View {
         }
         .padding(16)
         .frame(width: 360, height: 220)
+        .onAppear {
+            viewModel.reloadCliStates()
+        }
     }
 }

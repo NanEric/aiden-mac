@@ -41,7 +41,10 @@ struct DashboardView: View {
 
                 HStack {
                     Button("Refresh") { viewModel.refresh() }
-                    Button("Settings") { showSettings = true }
+                    Button("Settings") {
+                        viewModel.reloadCliStates()
+                        showSettings = true
+                    }
                     Button("Exit UI") { WindowRouter.closeAppUIOnly() }
                 }
             }
