@@ -21,14 +21,25 @@ final class ProcessService {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        process.terminationHandler = { [weak self, weak stderrPipe] terminated in
+            let stderrData = stderrPipe?.fileHandleForReading.readDataToEndOfFile() ?? Data()
+            let stderrText = String(data: stderrData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if terminated.terminationStatus != 0 {
+                self?.lastError = "Process exited (\(terminated.terminationStatus)): \(self?.executable.path ?? "unknown") \(self?.arguments.joined(separator: " ") ?? ""). \(stderrText)"
+            }
+        }
         do {
             try process.run()
             self.process = process
             lastError = nil
         } catch {
-            lastError = error.localizedDescription
+            let renderedArgs = arguments.joined(separator: " ")
+            lastError = "Failed to start \(executable.path) \(renderedArgs): \(error.localizedDescription)"
         }
     }
 

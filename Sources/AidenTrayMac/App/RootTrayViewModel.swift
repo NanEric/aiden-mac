@@ -16,14 +16,27 @@ final class RootTrayViewModel: ObservableObject {
     let onboardingViewModel = OnboardingViewModel()
 
     private let agentClient = RuntimeAgentClient()
+    private let agentLauncher = RuntimeAgentLauncher()
     private let userState = UserStateService()
+    private var hasBootstrapped = false
 
-    func bootstrap() {
+    func bootstrap(force: Bool = false) {
+        if hasBootstrapped && !force {
+            return
+        }
+        hasBootstrapped = true
         phase = .loading
         Task { @MainActor in
             do {
                 if !(await agentClient.healthz()) {
-                    await agentClient.restart()
+                    if let launchError = agentLauncher.ensureStarted() {
+                        phase = .startupError(launchError)
+                        return
+                    }
+                    if !(await waitForAgentHealth()) {
+                        phase = .startupError("Could not connect to the runtime agent")
+                        return
+                    }
                 }
                 let status = try await agentClient.status()
                 if !status.online {
@@ -44,8 +57,10 @@ final class RootTrayViewModel: ObservableObject {
 
     func retryBootstrap() {
         Task { @MainActor in
-            await agentClient.restart()
-            bootstrap()
+            if await agentClient.healthz() {
+                await agentClient.restart()
+            }
+            bootstrap(force: true)
         }
     }
 
@@ -65,5 +80,15 @@ final class RootTrayViewModel: ObservableObject {
         let states = onboardingViewModel.states
         let allAvailable = states.count == 3 && states.allSatisfy { $0.available }
         return !allAvailable
+    }
+
+    private func waitForAgentHealth(maxAttempts: Int = 15) async -> Bool {
+        for _ in 0..<maxAttempts {
+            if await agentClient.healthz() {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+        return false
     }
 }

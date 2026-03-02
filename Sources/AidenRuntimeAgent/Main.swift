@@ -67,8 +67,10 @@ struct AidenRuntimeAgentMain {
                 }
             }
 
-            // Keep the async main alive without calling dispatchMain() from an async main context.
-            await withCheckedContinuation { (_: CheckedContinuation<Void, Never>) in }
+            // Keep process alive in async main without leaking a continuation.
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
+            }
         } catch {
             fputs("Runtime agent failed: \(error.localizedDescription)\n", stderr)
             exit(1)

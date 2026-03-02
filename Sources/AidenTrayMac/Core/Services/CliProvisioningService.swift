@@ -57,7 +57,10 @@ final class CliProvisioningService {
     private func isEnabled(_ provider: CliProvider) -> Bool {
         switch provider {
         case .gemini:
-            return readJson(relativePath: ".gemini/settings.json")?["telemetry"] as? [String: Any] != nil
+            guard let telemetry = readJson(relativePath: ".gemini/settings.json")?["telemetry"] as? [String: Any] else {
+                return false
+            }
+            return parseEnabledValue(telemetry["enabled"])
         case .claude:
             let env = readJson(relativePath: ".claude/settings.json")?["env"] as? [String: Any]
             return (env?["CLAUDE_CODE_ENABLE_TELEMETRY"] as? String) == "1"
@@ -66,6 +69,20 @@ final class CliProvisioningService {
             guard let content = try? String(contentsOfFile: path) else { return false }
             return content.contains("otlp-grpc")
         }
+    }
+
+    private func parseEnabledValue(_ raw: Any?) -> Bool {
+        if let boolValue = raw as? Bool { return boolValue }
+        if let stringValue = raw as? String {
+            switch stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "1", "true", "yes", "on":
+                return true
+            default:
+                return false
+            }
+        }
+        if let numberValue = raw as? NSNumber { return numberValue.boolValue }
+        return false
     }
 
     private func updateJSONConfig(relativePath: String, update: (inout [String: Any]) -> Void) {

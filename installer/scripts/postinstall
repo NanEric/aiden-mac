@@ -35,6 +35,7 @@ AGENT_BINARY_PATH="$BIN_BASE/AidenRuntimeAgent"
 VERSION=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["version"])' "$LOCK_FILE")
 TARGET_DIR="$RUNTIME_BASE/$VERSION"
 CURRENT_LINK="$RUNTIME_BASE/current"
+VM_DATA_PATH="$CURRENT_LINK/data/victoria-metrics"
 TMP_DIR=$(mktemp -d)
 
 cleanup() {
@@ -42,7 +43,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$BIN_BASE" "$TARGET_DIR/bin" "$TARGET_DIR/config" "$CONFIG_BASE" "$LOG_BASE" "$LAUNCH_AGENT_DIR"
+ensure_user_ownership() {
+  chown -R "$console_user":staff "$AIDEN_ROOT" "$LOG_BASE"
+  chmod 755 "$AIDEN_ROOT" "$BIN_BASE" "$RUNTIME_BASE" "$CONFIG_BASE" "$LOG_BASE"
+}
+
+mkdir -p "$BIN_BASE" "$TARGET_DIR/bin" "$TARGET_DIR/config" "$TARGET_DIR/data/victoria-metrics" "$CONFIG_BASE" "$LOG_BASE" "$LAUNCH_AGENT_DIR"
+ensure_user_ownership
 
 if [[ ! -x "$AGENT_BOOTSTRAP_PATH" ]]; then
   echo "Missing bootstrap agent binary: $AGENT_BOOTSTRAP_PATH" >&2
@@ -165,7 +172,7 @@ cat > "$CONFIG_BASE/runtime.shared.json" <<JSON
     "rootPath": "$CURRENT_LINK",
     "vmPath": "bin/victoria-metrics-prod",
     "collectorPath": "bin/otelcol",
-    "vmArgs": ["-retentionPeriod=30d", "-httpListenAddr=:18428"],
+    "vmArgs": ["-retentionPeriod=30d", "-httpListenAddr=:18428", "-storageDataPath", "$VM_DATA_PATH"],
     "collectorArgs": ["--config", "$CURRENT_LINK/config/collector.yaml"]
   },
   "polling": { "seconds": 5 }
@@ -187,12 +194,10 @@ cp "$TRAY_PLIST_SRC" "$TRAY_LAUNCH_AGENT"
 uid=$(id -u "$console_user")
 chown "$console_user":staff "$RUNTIME_LAUNCH_AGENT" "$TRAY_LAUNCH_AGENT"
 chmod 644 "$RUNTIME_LAUNCH_AGENT" "$TRAY_LAUNCH_AGENT"
+ensure_user_ownership
 
+# Installer stage only cleans stale jobs. It does not start new jobs.
 launchctl asuser "$uid" launchctl bootout "gui/$uid/com.aiden.runtimeagent" >/dev/null 2>&1 || true
 launchctl asuser "$uid" launchctl bootout "gui/$uid/com.aiden.tray" >/dev/null 2>&1 || true
-launchctl asuser "$uid" launchctl bootstrap "gui/$uid" "$RUNTIME_LAUNCH_AGENT"
-launchctl asuser "$uid" launchctl bootstrap "gui/$uid" "$TRAY_LAUNCH_AGENT"
-launchctl asuser "$uid" launchctl kickstart -k "gui/$uid/com.aiden.runtimeagent"
-launchctl asuser "$uid" launchctl kickstart -k "gui/$uid/com.aiden.tray"
 
 exit 0

@@ -28,8 +28,5 @@ struct RootTrayView: View {
                     .frame(width: 420, height: 420)
             }
         }
-        .onAppear {
-            viewModel.bootstrap()
-        }
     }
 }

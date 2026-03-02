@@ -26,12 +26,22 @@ final class StatusBarController {
         popover.contentViewController = NSHostingController(rootView: rootView)
     }
 
+    func startBootstrap() {
+        rootViewModel.bootstrap()
+    }
+
     @objc private func togglePopover(_ sender: AnyObject?) {
         guard let button = item.button else { return }
         if popover.isShown {
             popover.performClose(sender)
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            let anchor = NSRect(
+                x: button.bounds.midX - 0.5,
+                y: button.bounds.minY,
+                width: 1,
+                height: button.bounds.height
+            )
+            popover.show(relativeTo: anchor, of: button, preferredEdge: .minY)
         }
     }
 }

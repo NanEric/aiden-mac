@@ -3,10 +3,15 @@ import AidenShared
 
 struct SettingsView: View {
     @ObservedObject var viewModel: DashboardViewModel
+    let onClose: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("CLI Settings").font(.title3).bold()
+            HStack {
+                Text("CLI Settings").font(.title3).bold()
+                Spacer()
+                Button("Done") { onClose() }
+            }
 
             ForEach(CliProvider.allCases, id: \.self) { provider in
                 let state = viewModel.cliStates.first(where: { $0.provider == provider })
