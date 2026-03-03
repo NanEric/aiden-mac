@@ -10,11 +10,13 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     ForEach(CliProvider.allCases, id: \.self) { provider in
-                        Button(provider.rawValue.capitalized) {
+                        Button {
                             viewModel.setProvider(provider)
+                        } label: {
+                            tabLabel(for: provider)
                         }
-                        .disabled(!viewModel.isTabEnabled(provider))
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.tabDisplayState(provider) == .invalid || !viewModel.isTabEnabled(provider))
                     }
                 }
 
@@ -82,5 +84,65 @@ struct DashboardView: View {
     private func contextText(_ snapshot: TelemetrySnapshot) -> String {
         guard let m = snapshot.contextM, let p = snapshot.contextPercent else { return "N/A" }
         return String(format: "%.3fM (%.1f%%)", m, p)
+    }
+
+    private func tabLabel(for provider: CliProvider) -> some View {
+        let state = viewModel.tabDisplayState(provider)
+        return HStack(spacing: 6) {
+            Text(provider.rawValue.capitalized)
+                .font(.subheadline.weight(.semibold))
+            if state == .invalid {
+                Text("Invalid")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.red.opacity(0.15))
+                    .foregroundStyle(Color.red)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(minWidth: 110)
+        .background(backgroundColor(for: state))
+        .foregroundStyle(textColor(for: state))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(borderColor(for: state), lineWidth: 1)
+        )
+    }
+
+    private func backgroundColor(for state: DashboardViewModel.TabDisplayState) -> Color {
+        switch state {
+        case .selected:
+            return .accentColor
+        case .normal:
+            return Color.gray.opacity(0.14)
+        case .invalid:
+            return Color.gray.opacity(0.08)
+        }
+    }
+
+    private func textColor(for state: DashboardViewModel.TabDisplayState) -> Color {
+        switch state {
+        case .selected:
+            return .white
+        case .normal:
+            return .primary
+        case .invalid:
+            return .secondary
+        }
+    }
+
+    private func borderColor(for state: DashboardViewModel.TabDisplayState) -> Color {
+        switch state {
+        case .selected:
+            return .accentColor
+        case .normal:
+            return Color.gray.opacity(0.28)
+        case .invalid:
+            return Color.red.opacity(0.35)
+        }
     }
 }

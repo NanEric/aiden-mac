@@ -3,6 +3,7 @@ import AidenShared
 
 struct TelemetryAggregator {
     let vmClient: VmClient
+    let codexLogClient: CodexLogClient?
 
     func snapshot(for provider: CliProvider, runtimeOnline: Bool) async -> TelemetrySnapshot {
         guard runtimeOnline else {
@@ -22,12 +23,17 @@ struct TelemetryAggregator {
 
         let service = provider.serviceName
         do {
-            let input = try await vmClient.queryValue(MetricsQueryBuilder.inputTokens(serviceName: service))
-            let output = try await vmClient.queryValue(MetricsQueryBuilder.outputTokens(serviceName: service))
-            let userSample = try await vmClient.queryLatestUser(MetricsQueryBuilder.currentUser(serviceName: service))
-            let user = userSample?.email ?? "Unknown"
+            let vmInput = try await vmClient.queryValue(MetricsQueryBuilder.inputTokens(serviceName: service))
+            let vmOutput = try await vmClient.queryValue(MetricsQueryBuilder.outputTokens(serviceName: service))
+            let vmUserSample = try await vmClient.queryLatestUser(MetricsQueryBuilder.currentUser(serviceName: service))
+            let fallbackSample = codexFallback(provider: provider, vmInput: vmInput, vmOutput: vmOutput, vmUser: vmUserSample?.email)
+
+            let input = vmInput ?? fallbackSample?.inputTokens
+            let output = vmOutput ?? fallbackSample?.outputTokens
+            let user = vmUserSample?.email ?? fallbackSample?.email ?? "Unknown"
             let activeDays: Int? = {
-                guard let timestamp = userSample?.timestampSeconds else { return nil }
+                let latestTimestamp = vmUserSample?.timestampSeconds ?? fallbackSample?.timestamp.timeIntervalSince1970
+                guard let timestamp = latestTimestamp else { return nil }
                 let delta = max(0, Date().timeIntervalSince1970 - timestamp)
                 return Int(floor(delta / 86_400.0))
             }()
@@ -62,5 +68,17 @@ struct TelemetryAggregator {
                 updatedAt: Date()
             )
         }
+    }
+
+    private func codexFallback(
+        provider: CliProvider,
+        vmInput: Double?,
+        vmOutput: Double?,
+        vmUser: String?
+    ) -> CodexLogClient.UsageSample? {
+        guard provider == .codex else { return nil }
+        let vmHasData = vmInput != nil || vmOutput != nil || (vmUser?.isEmpty == false)
+        guard !vmHasData else { return nil }
+        return codexLogClient?.latestUsage()
     }
 }

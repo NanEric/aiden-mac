@@ -10,6 +10,10 @@ processors:
 exporters:
   prometheusremotewrite:
     endpoint: http://127.0.0.1:18428/api/v1/write
+  file/codex:
+    path: __CODEX_LOG_PATH__
+    format: json
+  nop: {}
 
 service:
   pipelines:
@@ -17,3 +21,11 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [prometheusremotewrite]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/codex]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [nop]

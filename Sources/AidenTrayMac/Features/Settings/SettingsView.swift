@@ -16,7 +16,7 @@ struct SettingsView: View {
             ForEach(CliProvider.allCases, id: \.self) { provider in
                 let state = viewModel.cliStates.first(where: { $0.provider == provider })
                 HStack {
-                    Text(provider.rawValue.capitalized)
+                    Text(provider.displayName)
                     Spacer()
                     if state?.installed == true {
                         Toggle("Enabled", isOn: Binding(

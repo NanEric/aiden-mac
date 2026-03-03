@@ -151,7 +151,8 @@ fi
 
 fetch_and_verify "otelcol"
 fetch_and_verify "victoriaMetrics"
-cp "$COLLECTOR_TEMPLATE" "$TARGET_DIR/config/collector.yaml"
+codex_log_path="$CURRENT_LINK/data/codex-otel-logs.jsonl"
+sed "s|__CODEX_LOG_PATH__|$codex_log_path|g" "$COLLECTOR_TEMPLATE" > "$TARGET_DIR/config/collector.yaml"
 ln -sfn "$TARGET_DIR" "$CURRENT_LINK"
 
 echo "Dependency prepare completed."

@@ -4,6 +4,12 @@ import AidenShared
 
 @MainActor
 final class DashboardViewModel: ObservableObject {
+    enum TabDisplayState {
+        case selected
+        case normal
+        case invalid
+    }
+
     @Published var state = DashboardState()
     @Published var cliStates: [CliState] = []
 
@@ -35,6 +41,18 @@ final class DashboardViewModel: ObservableObject {
 
     func isTabEnabled(_ provider: CliProvider) -> Bool {
         cliStates.first(where: { $0.provider == provider })?.available == true
+    }
+
+    func isTabInstalled(_ provider: CliProvider) -> Bool {
+        cliStates.first(where: { $0.provider == provider })?.installed == true
+    }
+
+    func tabDisplayState(_ provider: CliProvider) -> TabDisplayState {
+        guard isTabInstalled(provider) else { return .invalid }
+        if state.selectedProvider == provider && isTabEnabled(provider) {
+            return .selected
+        }
+        return .normal
     }
 
     var hasAnyAvailableTab: Bool {

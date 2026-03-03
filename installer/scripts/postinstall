@@ -90,7 +90,8 @@ PY
 }
 
 write_collector_config() {
-  cp "$COLLECTOR_TEMPLATE" "$TARGET_DIR/config/collector.yaml"
+  local codex_log_path="$CURRENT_LINK/data/codex-otel-logs.jsonl"
+  sed "s|__CODEX_LOG_PATH__|$codex_log_path|g" "$COLLECTOR_TEMPLATE" > "$TARGET_DIR/config/collector.yaml"
 }
 
 fetch_and_verify() {
