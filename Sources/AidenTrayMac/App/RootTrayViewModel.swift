@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import AidenShared
 
 @MainActor
 final class RootTrayViewModel: ObservableObject {
@@ -41,7 +42,7 @@ final class RootTrayViewModel: ObservableObject {
                         return
                     }
                 }
-                let status = try await agentClient.status()
+                let status = await waitForRuntimeOnline()
                 if !status.online {
                     phase = .startupError(status.lastError ?? "Runtime is offline")
                     return
@@ -93,5 +94,36 @@ final class RootTrayViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 300_000_000)
         }
         return false
+    }
+
+    private func waitForRuntimeOnline(maxAttempts: Int = 20) async -> RuntimeStatus {
+        var lastKnown = RuntimeStatus(
+            online: false,
+            collectorHealthy: false,
+            vmHealthy: false,
+            lastError: "Runtime is offline",
+            updatedAt: Date()
+        )
+
+        for _ in 0..<maxAttempts {
+            do {
+                let status = try await agentClient.status()
+                lastKnown = status
+                if status.online {
+                    return status
+                }
+            } catch {
+                lastKnown = RuntimeStatus(
+                    online: false,
+                    collectorHealthy: false,
+                    vmHealthy: false,
+                    lastError: error.localizedDescription,
+                    updatedAt: Date()
+                )
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+
+        return lastKnown
     }
 }
