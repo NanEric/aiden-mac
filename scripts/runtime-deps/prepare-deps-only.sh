@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-LOCK_FILE="$ROOT_DIR/installer/manifests/dependency-lock.json"
+LOCK_FILE="$SCRIPT_DIR/dependency-lock.json"
 COLLECTOR_TEMPLATE="$ROOT_DIR/third_party/collector/config.yaml.template"
 
 APP_NAME="Aiden"

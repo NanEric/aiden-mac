@@ -1,21 +1,20 @@
-# Aiden macOS Local Integration (Installer-time Dependency Download)
+# Aiden macOS Local Integration
 
 This repository contains a runnable baseline for:
 - `AidenTrayMac` (menu bar UI process)
 - `AidenRuntimeAgent` (background supervisor/API process)
-- installer manifests/scripts that download runtime dependencies (`otelcol`, `victoria-metrics`) at install time.
+- runtime dependency tooling that downloads and verifies `otelcol` and `victoria-metrics` for local runs.
 
-## Final distribution layout (M4)
-- Tray app: `/Applications/AidenTrayMac.app`
-- Runtime agent binary: `~/Library/Application Support/Aiden/bin/AidenRuntimeAgent`
-- Downloaded runtime dependencies:
+## Runtime layout
+- Runtime dependencies:
   - `~/Library/Application Support/Aiden/runtime/<version>/bin/otelcol`
   - `~/Library/Application Support/Aiden/runtime/<version>/bin/victoria-metrics-prod`
-- LaunchAgents:
+- Current symlink:
+  - `~/Library/Application Support/Aiden/runtime/current`
+- Runtime LaunchAgent (generated at runtime):
   - `~/Library/LaunchAgents/com.aiden.runtimeagent.plist`
-  - `~/Library/LaunchAgents/com.aiden.tray.plist`
 
-Tray and runtime agent are both configured to auto-start on user login.
+The tray process bootstraps runtime config and LaunchAgent files at startup.
 
 ## Build
 ```bash
@@ -27,30 +26,10 @@ swift build
 swift test
 ```
 
-## Package (unsigned)
+## Prepare Runtime Dependencies
 ```bash
-VERSION="1.0.0" installer/scripts/build-pkg.sh
+./scripts/runtime-deps/validate-dependency-lock.sh
+./scripts/runtime-deps/prepare-deps-only.sh
 ```
 
-## Release hardening (M4)
-```bash
-installer/scripts/validate-dependency-lock.sh
-APP_SIGN_IDENTITY="Developer ID Application: TEAM NAME (TEAMID)" \
-VERSION="1.0.0" \
-installer/scripts/build-pkg.sh
-```
-
-Then sign + notarize package:
-```bash
-productsign --sign "Developer ID Installer: TEAM NAME (TEAMID)" dist/AidenMac-unsigned.pkg dist/AidenMac.pkg
-xcrun notarytool submit dist/AidenMac.pkg --keychain-profile "<notary-profile>" --wait
-xcrun stapler staple dist/AidenMac.pkg
-spctl -a -t install -vv dist/AidenMac.pkg
-```
-
-Verify uninstall cleanup:
-```bash
-installer/scripts/verify-uninstall-clean.sh
-```
-
-Note: if upstream artifacts are unsigned on macOS, set `teamId` to empty in `installer/manifests/dependency-lock.json` and rely on strict SHA256 pinning.
+Note: if upstream artifacts are unsigned on macOS, set `teamId` to empty in `scripts/runtime-deps/dependency-lock.json` and rely on strict SHA256 pinning.

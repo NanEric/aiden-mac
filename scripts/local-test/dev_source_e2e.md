@@ -5,7 +5,7 @@
 
 ```bash
 cd /Users/eric/Documents/aiden-mac
-./installer/scripts/prepare-deps-only.sh
+./scripts/runtime-deps/prepare-deps-only.sh
 ```
 
 说明：此步骤只会准备 `~/Library/Application Support/Aiden/runtime/current` 下依赖与 collector 配置。

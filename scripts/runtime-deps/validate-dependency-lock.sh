@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-LOCK_FILE="${1:-$(cd "$(dirname "$0")/.." && pwd)/manifests/dependency-lock.json}"
+LOCK_FILE="${1:-$(cd "$(dirname "$0")" && pwd)/dependency-lock.json}"
 
 python3 - "$LOCK_FILE" <<'PY'
 import json
