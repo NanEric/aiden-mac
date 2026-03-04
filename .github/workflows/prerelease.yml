@@ -21,6 +21,11 @@ permissions:
   contents: write
   id-token: write
 
+# 建议并发组加引号，防止特殊版本号导致解析错误
+concurrency:
+  group: "prerelease-${{ github.workflow }}-${{ github.ref }}-${{ inputs.channel }}-${{ inputs.base_version }}"
+  cancel-in-progress: false
+
 jobs:
   guard-main:
     runs-on: ubuntu-latest
