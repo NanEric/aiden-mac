@@ -17,8 +17,9 @@ on:
           - beta
           - rc
 
+# 建议并发组加引号，防止特殊版本号导致解析错误
 concurrency:
-  group: prerelease-${{ inputs.channel }}-${{ inputs.base_version }}
+  group: "prerelease-${{ github.workflow }}-${{ github.ref }}-${{ inputs.channel }}-${{ inputs.base_version }}"
   cancel-in-progress: false
 
 jobs:
@@ -27,8 +28,8 @@ jobs:
     steps:
       - name: Allow main branch only
         run: |
-          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
-            echo "This workflow may only run on main"
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "Error: This workflow may only run on main branch."
             exit 1
           fi
 
