@@ -26,10 +26,7 @@ swift build
 swift test
 ```
 
-## Prepare Runtime Dependencies
-```bash
-./scripts/runtime-deps/validate-dependency-lock.sh
-./scripts/runtime-deps/prepare-deps-only.sh
-```
+## Runtime dependency installation
+`install-runtime-deps.sh` (bundled into the release installer) calls `scripts/runtime-deps/download-vm.sh` and `scripts/runtime-deps/download-collector.sh` to fetch the locked versions declared in `scripts/runtime-deps/dependency-lock.json`.
 
-Note: if upstream artifacts are unsigned on macOS, set `teamId` to empty in `scripts/runtime-deps/dependency-lock.json` and rely on strict SHA256 pinning.
+Note: if upstream artifacts are unsigned on macOS, configure `download-collector.sh`/`download-vm.sh` to skip team checks and rely on SHA256 pinning instead.

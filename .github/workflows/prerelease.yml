@@ -1,0 +1,49 @@
+name: Aiden macOS Prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_version:
+        description: "Base version in vMAJOR.MINOR.PATCH format (example: v0.1.0)"
+        required: true
+        type: string
+      channel:
+        description: "Prerelease channel"
+        required: true
+        type: choice
+        default: alpha
+        options:
+          - alpha
+          - beta
+          - rc
+
+concurrency:
+  group: prerelease-${{ inputs.channel }}-${{ inputs.base_version }}
+  cancel-in-progress: false
+
+jobs:
+  guard-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Allow main branch only
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "This workflow may only run on main"
+            exit 1
+          fi
+
+  prerelease:
+    needs: guard-main
+    uses: zhangyu528/release-actions/.github/workflows/pre-release-entry.yml@main
+    with:
+      platform: macos
+      base_version: ${{ inputs.base_version }}
+      channel: ${{ inputs.channel }}
+      macos_build_system: swiftpm
+      macos_runtime_helper_dir: scripts/runtime-deps
+      macos_app_identifier: com.aiden.app
+    secrets:
+      repo_token: ${{ secrets.GITHUB_TOKEN }}
+      apple_id: ${{ secrets.APPLE_ID }}
+      apple_app_password: ${{ secrets.APPLE_APP_PASSWORD }}
+      signpath_api_token: ${{ secrets.SIGNPATH_API_TOKEN }}
