@@ -72,3 +72,6 @@ dist/
 
 # local VictoriaMetrics runtime data
 victoria-metrics-data/
+
+# local cache artifacts
+.cache/
