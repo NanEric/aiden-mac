@@ -21,40 +21,74 @@ final class RootTrayViewModel: ObservableObject {
     private let runtimeBootstrapService = RuntimeBootstrapService()
     private let userState = UserStateService()
     private var hasBootstrapped = false
+    private var startupAutoRetryTask: Task<Void, Never>?
+    private var bootstrapGeneration = 0
+    private var isBootstrapInFlight = false
+
+    deinit {
+        startupAutoRetryTask?.cancel()
+    }
 
     func bootstrap(force: Bool = false) {
+        runBootstrap(force: force, showLoading: true)
+    }
+
+    private func runBootstrap(force: Bool, showLoading: Bool) {
         if hasBootstrapped && !force {
             return
         }
+        if isBootstrapInFlight {
+            return
+        }
+
         hasBootstrapped = true
-        phase = .loading
+        isBootstrapInFlight = true
+        bootstrapGeneration += 1
+        let generation = bootstrapGeneration
+        if showLoading {
+            setPhase(.loading)
+        }
+
         Task { @MainActor in
+            defer {
+                if isCurrentGeneration(generation) {
+                    isBootstrapInFlight = false
+                }
+            }
+
             do {
                 try runtimeBootstrapService.ensureRuntimeFiles()
+                guard isCurrentGeneration(generation) else { return }
 
                 if !(await agentClient.healthz()) {
                     if let launchError = agentLauncher.ensureStarted() {
-                        phase = .startupError(launchError)
+                        guard isCurrentGeneration(generation) else { return }
+                        setPhase(.startupError(launchError))
                         return
                     }
                     if !(await waitForAgentHealth()) {
-                        phase = .startupError("Could not connect to the runtime agent")
+                        guard isCurrentGeneration(generation) else { return }
+                        setPhase(.startupError("Could not connect to the runtime agent"))
                         return
                     }
                 }
+                guard isCurrentGeneration(generation) else { return }
+
                 let status = await waitForRuntimeOnline()
+                guard isCurrentGeneration(generation) else { return }
                 if !status.online {
-                    phase = .startupError(status.lastError ?? "Runtime is offline")
+                    setPhase(.startupError(status.lastError ?? "Runtime is offline"))
                     return
                 }
 
                 if shouldShowOnboarding() {
-                    phase = .onboarding
+                    setPhase(.onboarding)
                 } else {
-                    phase = .dashboard
+                    setPhase(.dashboard)
                 }
             } catch {
-                phase = .startupError(error.localizedDescription)
+                guard isCurrentGeneration(generation) else { return }
+                setPhase(.startupError(error.localizedDescription))
             }
         }
     }
@@ -64,14 +98,14 @@ final class RootTrayViewModel: ObservableObject {
             if await agentClient.healthz() {
                 await agentClient.restart()
             }
-            bootstrap(force: true)
+            runBootstrap(force: true, showLoading: true)
         }
     }
 
     func continueFromOnboarding() {
         onboardingViewModel.complete()
         dashboardViewModel.reloadCliStates()
-        phase = .dashboard
+        setPhase(.dashboard)
     }
 
     func exitApp() {
@@ -125,5 +159,44 @@ final class RootTrayViewModel: ObservableObject {
         }
 
         return lastKnown
+    }
+
+    private func setPhase(_ next: Phase) {
+        phase = next
+        switch next {
+        case .startupError:
+            startStartupAutoRetryLoopIfNeeded()
+        case .loading, .onboarding, .dashboard:
+            stopStartupAutoRetryLoop()
+        }
+    }
+
+    private func startStartupAutoRetryLoopIfNeeded() {
+        guard startupAutoRetryTask == nil else { return }
+        startupAutoRetryTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard let self else { return }
+                await self.runStartupAutoRetryTick()
+            }
+        }
+    }
+
+    private func stopStartupAutoRetryLoop() {
+        startupAutoRetryTask?.cancel()
+        startupAutoRetryTask = nil
+    }
+
+    private func runStartupAutoRetryTick() async {
+        guard case .startupError = phase else {
+            stopStartupAutoRetryLoop()
+            return
+        }
+        guard !isBootstrapInFlight else { return }
+        runBootstrap(force: true, showLoading: false)
+    }
+
+    private func isCurrentGeneration(_ generation: Int) -> Bool {
+        generation == bootstrapGeneration
     }
 }

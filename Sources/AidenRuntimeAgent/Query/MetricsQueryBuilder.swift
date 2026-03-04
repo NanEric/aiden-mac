@@ -13,4 +13,11 @@ enum MetricsQueryBuilder {
     static func currentUser(serviceName: String) -> String {
         "topk(1,max by (user_email) (timestamp(gen_ai_client_token_usage_sum{job=\"\(serviceName)\",user_email!=\"\"})))"
     }
+
+    static func latestActivityTime(serviceName: String, userEmail: String, lookbackDays: Int = 365) -> String {
+        let escapedEmail = userEmail
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "max_over_time(timestamp(gen_ai_client_token_usage_sum{job=\"\(serviceName)\",user_email=\"\(escapedEmail)\"})[\(lookbackDays)d:1h])"
+    }
 }

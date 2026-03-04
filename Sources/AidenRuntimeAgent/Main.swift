@@ -26,7 +26,8 @@ struct AidenRuntimeAgentMain {
                 case ("GET", "/healthz"):
                     return (200, Data("{\"ok\":true}".utf8))
                 case ("GET", "/status"):
-                    let status = await state.getStatus()
+                    let status = supervisor.status()
+                    await state.setStatus(status)
                     return (200, StatusController.encode(status))
                 case ("GET", "/telemetry"):
                     let provider = CliProvider(rawValue: query["cli"] ?? "gemini") ?? .gemini

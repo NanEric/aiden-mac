@@ -27,16 +27,23 @@ struct TelemetryAggregator {
             let vmOutput = try await vmClient.queryValue(MetricsQueryBuilder.outputTokens(serviceName: service))
             let vmUserSample = try await vmClient.queryLatestUser(MetricsQueryBuilder.currentUser(serviceName: service))
             let fallbackSample = codexFallback(provider: provider, vmInput: vmInput, vmOutput: vmOutput, vmUser: vmUserSample?.email)
+            // Keep "Current User Email" source unchanged; use it as anchor for Gemini active-days lookup.
+            let geminiActivityEpoch = try await queryGeminiActivityEpoch(
+                provider: provider,
+                service: service,
+                currentUserEmail: vmUserSample?.email
+            )
 
             let input = vmInput ?? fallbackSample?.inputTokens
             let output = vmOutput ?? fallbackSample?.outputTokens
             let user = vmUserSample?.email ?? fallbackSample?.email ?? "Unknown"
-            let activeDays: Int? = {
-                let latestTimestamp = vmUserSample?.timestampSeconds ?? fallbackSample?.timestamp.timeIntervalSince1970
-                guard let timestamp = latestTimestamp else { return nil }
-                let delta = max(0, Date().timeIntervalSince1970 - timestamp)
-                return Int(floor(delta / 86_400.0))
-            }()
+            let latestTimestamp = Self.latestActivityTimestamp(
+                provider: provider,
+                vmUserSample: vmUserSample,
+                fallbackSample: fallbackSample,
+                geminiActivityEpoch: geminiActivityEpoch
+            )
+            let activeDays = Self.activeDays(sinceEpochSeconds: latestTimestamp, now: Date())
 
             let cost = ((input ?? 0) * 0.000001) + ((output ?? 0) * 0.000002)
             let contextM = input.map { $0 / 1_000_000.0 }
@@ -80,5 +87,34 @@ struct TelemetryAggregator {
         let vmHasData = vmInput != nil || vmOutput != nil || (vmUser?.isEmpty == false)
         guard !vmHasData else { return nil }
         return codexLogClient?.latestUsage()
+    }
+
+    private func queryGeminiActivityEpoch(
+        provider: CliProvider,
+        service: String,
+        currentUserEmail: String?
+    ) async throws -> Double? {
+        guard provider == .gemini else { return nil }
+        guard let currentUserEmail, !currentUserEmail.isEmpty else { return nil }
+        let query = MetricsQueryBuilder.latestActivityTime(serviceName: service, userEmail: currentUserEmail)
+        return try await vmClient.queryEpochSeconds(query)
+    }
+
+    static func latestActivityTimestamp(
+        provider: CliProvider,
+        vmUserSample: VmClient.UserSample?,
+        fallbackSample: CodexLogClient.UsageSample?,
+        geminiActivityEpoch: Double?
+    ) -> Double? {
+        if provider == .gemini {
+            return geminiActivityEpoch
+        }
+        return vmUserSample?.timestampSeconds ?? fallbackSample?.timestamp.timeIntervalSince1970
+    }
+
+    static func activeDays(sinceEpochSeconds timestamp: Double?, now: Date) -> Int? {
+        guard let timestamp else { return nil }
+        let delta = max(0, now.timeIntervalSince1970 - timestamp)
+        return Int(floor(delta / 86_400.0))
     }
 }
