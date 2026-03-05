@@ -18,6 +18,39 @@ struct RuntimeBootstrapService {
     private let fileManager = FileManager.default
     private let appName = "Aiden"
     private let label = "com.aiden.runtimeagent"
+    private let collectorTemplate = """
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 127.0.0.1:4317
+
+    processors:
+      batch: {}
+
+    exporters:
+      prometheusremotewrite:
+        endpoint: http://127.0.0.1:18428/api/v1/write
+      file/codex:
+        path: __CODEX_LOG_PATH__
+        format: json
+      nop: {}
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheusremotewrite]
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [file/codex]
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [nop]
+    """
 
     func ensureRuntimeFiles() throws {
         let home = fileManager.homeDirectoryForCurrentUser
@@ -31,6 +64,8 @@ struct RuntimeBootstrapService {
         try fileManager.createDirectory(at: launchAgentsDir, withIntermediateDirectories: true)
 
         let runtimeRoot = try resolveRuntimeRoot(home: home)
+        try ensureCollectorConfig(runtimeRoot: runtimeRoot)
+        try writeRuntimeDepsLock(runtimeRoot: runtimeRoot)
         let configPath = configDir.appendingPathComponent("runtime.shared.json")
         try upsertRuntimeConfig(path: configPath, runtimeRoot: runtimeRoot)
 
@@ -83,10 +118,138 @@ struct RuntimeBootstrapService {
     private func hasDependencies(root: URL) -> Bool {
         let collector = root.appendingPathComponent("bin/otelcol").path
         let vm = root.appendingPathComponent("bin/victoria-metrics-prod").path
-        let collectorConfig = root.appendingPathComponent("collector/config/collector.yaml").path
         return fileManager.isExecutableFile(atPath: collector)
             && fileManager.isExecutableFile(atPath: vm)
-            && fileManager.fileExists(atPath: collectorConfig)
+    }
+
+    private func ensureCollectorConfig(runtimeRoot: URL) throws {
+        let collectorConfig = runtimeRoot.appendingPathComponent("collector/config/collector.yaml")
+        let logsDir = runtimeRoot.appendingPathComponent("logs")
+        let codexLogPath = logsDir.appendingPathComponent("codex-otel.jsonl").path
+        try fileManager.createDirectory(at: collectorConfig.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: logsDir, withIntermediateDirectories: true)
+
+        let templateText = loadCollectorTemplate()
+        let rendered = templateText.replacingOccurrences(of: "__CODEX_LOG_PATH__", with: codexLogPath)
+
+        var existingText = ""
+        if fileManager.fileExists(atPath: collectorConfig.path),
+           let data = fileManager.contents(atPath: collectorConfig.path),
+           let text = String(data: data, encoding: .utf8) {
+            existingText = text
+        }
+
+        if existingText == rendered {
+            return
+        }
+        if !existingText.isEmpty && !existingText.contains("__CODEX_LOG_PATH__") {
+            return
+        }
+
+        try writeAtomically(text: rendered, to: collectorConfig)
+    }
+
+    private func loadCollectorTemplate() -> String {
+        let cwd = URL(fileURLWithPath: fileManager.currentDirectoryPath)
+        let repoTemplate = cwd
+            .appendingPathComponent("third_party")
+            .appendingPathComponent("collector")
+            .appendingPathComponent("config.yaml.template")
+        if let data = fileManager.contents(atPath: repoTemplate.path),
+           let text = String(data: data, encoding: .utf8) {
+            return text
+        }
+        return collectorTemplate
+    }
+
+    private func writeRuntimeDepsLock(runtimeRoot: URL) throws {
+        let collectorBinary = runtimeRoot.appendingPathComponent("bin/otelcol")
+        let vmBinary = runtimeRoot.appendingPathComponent("bin/victoria-metrics-prod")
+        let lockPath = runtimeRoot.appendingPathComponent("deps.lock.json")
+
+        let now = iso8601Now()
+        let payload: [String: Any] = [
+            "updated_at": now,
+            "collector": [
+                "binary_path": collectorBinary.path,
+                "binary_sha256": sha256(path: collectorBinary.path) ?? "unknown",
+                "version": collectorVersion(binary: collectorBinary) ?? "unknown",
+                "observed_at": now
+            ],
+            "vm": [
+                "binary_path": vmBinary.path,
+                "binary_sha256": sha256(path: vmBinary.path) ?? "unknown",
+                "version": vmVersion(binary: vmBinary) ?? "unknown",
+                "observed_at": now
+            ]
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        try writeAtomically(data: data, to: lockPath)
+    }
+
+    private func sha256(path: String) -> String? {
+        guard let output = runCommand("/usr/bin/shasum", ["-a", "256", path]) else { return nil }
+        let parts = output.split(separator: " ")
+        guard let first = parts.first else { return nil }
+        return String(first).lowercased()
+    }
+
+    private func collectorVersion(binary: URL) -> String? {
+        guard let output = runCommand(binary.path, ["components"]) else { return nil }
+        for line in output.split(separator: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("version:") {
+                return trimmed.replacingOccurrences(of: "version:", with: "")
+                    .trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return nil
+    }
+
+    private func vmVersion(binary: URL) -> String? {
+        guard let output = runCommand(binary.path, ["-version"]) else { return nil }
+        if let match = output.range(of: #"v\d+\.\d+\.\d+([-\+][A-Za-z0-9\.-]+)?"#, options: .regularExpression) {
+            return String(output[match])
+        }
+        return nil
+    }
+
+    private func runCommand(_ executable: String, _ arguments: [String]) -> String? {
+        guard fileManager.isExecutableFile(atPath: executable) else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = stdout.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)
+        } catch {
+            return nil
+        }
+    }
+
+    private func iso8601Now() -> String {
+        ISO8601DateFormatter().string(from: Date())
+    }
+
+    private func writeAtomically(text: String, to path: URL) throws {
+        try writeAtomically(data: Data(text.utf8), to: path)
+    }
+
+    private func writeAtomically(data: Data, to path: URL) throws {
+        let temp = path.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).tmp")
+        try data.write(to: temp, options: .atomic)
+        if fileManager.fileExists(atPath: path.path) {
+            try fileManager.removeItem(at: path)
+        }
+        try fileManager.moveItem(at: temp, to: path)
     }
 
     private func upsertRuntimeConfig(path: URL, runtimeRoot: URL) throws {
