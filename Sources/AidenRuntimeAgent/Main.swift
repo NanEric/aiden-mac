@@ -15,7 +15,7 @@ struct AidenRuntimeAgentMain {
 
             let supervisor = RuntimeSupervisor(config: config)
             let state = AgentState()
-            let codexLogPath = config.runtimeRoot.appendingPathComponent("data/codex-otel-logs.jsonl")
+            let codexLogPath = config.runtimeRoot.appendingPathComponent("logs/codex-otel.jsonl")
             let aggregator = TelemetryAggregator(vmClient: VmClient(), codexLogClient: CodexLogClient(logPath: codexLogPath))
 
             supervisor.ensureStarted()
