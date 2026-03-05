@@ -41,22 +41,25 @@ launchctl bootout "gui/$(id -u)/com.aiden.tray" 2>/dev/null || true
 
 ```bash
 cd /Users/eric/Documents/aiden-mac
-./scripts/runtime-deps/validate-dependency-lock.sh
-./scripts/runtime-deps/prepare-deps-only.sh
+./scripts/runtime-deps/install-runtime-deps.sh
 ```
 
 预期关键结果：
-- `~/Library/Application Support/Aiden/runtime/current/bin/otelcol` 存在且可执行
-- `~/Library/Application Support/Aiden/runtime/current/bin/victoria-metrics-prod` 存在且可执行
-- `~/Library/Application Support/Aiden/runtime/current/config/collector.yaml` 存在
+- `~/Library/Application Support/Aiden/runtime/bin/otelcol` 存在且可执行
+- `~/Library/Application Support/Aiden/runtime/bin/victoria-metrics-prod` 存在且可执行
+- `~/Library/Application Support/Aiden/runtime/collector/config/collector.yaml` 存在
+- 默认会按 GitHub release checksums 自动解析并校验 collector SHA；仅在网络异常排障时临时使用 `--allow-insecure-fallback`
 
 可选检查：
 
 ```bash
-test -x "$HOME/Library/Application Support/Aiden/runtime/current/bin/otelcol" && echo "otel ok"
-test -x "$HOME/Library/Application Support/Aiden/runtime/current/bin/victoria-metrics-prod" && echo "vm ok"
-test -f "$HOME/Library/Application Support/Aiden/runtime/current/config/collector.yaml" && echo "collector config ok"
+test -x "$HOME/Library/Application Support/Aiden/runtime/bin/otelcol" && echo "otel ok"
+test -x "$HOME/Library/Application Support/Aiden/runtime/bin/victoria-metrics-prod" && echo "vm ok"
+test -f "$HOME/Library/Application Support/Aiden/runtime/collector/config/collector.yaml" && echo "collector config ok"
+cat "$HOME/Library/Application Support/Aiden/runtime/deps.lock.json"
 ```
+
+说明：`deps.lock.json` 用于记录外部依赖版本与来源，便于排障追踪；不参与启动路径选择。
 
 ## 4. 构建源码（主流程）
 

@@ -17,6 +17,7 @@ VERSION=""
 DOWNLOAD_URL=""
 SHA256=""
 INSTALL_ROOT=""
+METADATA_OUT=""
 ALLOW_INSECURE=0
 FORCE=0
 
@@ -26,6 +27,7 @@ while [[ $# -gt 0 ]]; do
     --download-url) DOWNLOAD_URL="$2"; shift 2 ;;
     --sha256) SHA256="$2"; shift 2 ;;
     --install-root) INSTALL_ROOT="$2"; shift 2 ;;
+    --metadata-out) METADATA_OUT="$2"; shift 2 ;;
     --allow-insecure-fallback) ALLOW_INSECURE=1; shift ;;
     --force) FORCE=1; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -95,16 +97,53 @@ if [[ -z "$SHA256" ]]; then
 fi
 
 INSTALL_BASE="${INSTALL_ROOT:-"$HOME/Library/Application Support/Aiden/runtime"}"
-TARGET_DIR="$INSTALL_BASE/vm/$VERSION"
+TARGET_DIR="$INSTALL_BASE"
 BINARY_NAME="victoria-metrics-prod"
 TARGET_BIN="$TARGET_DIR/bin/$BINARY_NAME"
 
+write_metadata() {
+  [[ -n "$METADATA_OUT" ]] || return 0
+  mkdir -p "$(dirname "$METADATA_OUT")"
+  METADATA_OUT="$METADATA_OUT" \
+  META_NAME="vm" \
+  META_VERSION="$VERSION" \
+  META_URL="$DOWNLOAD_URL" \
+  META_SHA="$SHA256" \
+  META_BIN="$TARGET_BIN" \
+  python3 <<'PY'
+import json
+import os
+import tempfile
+from datetime import datetime, timezone
+
+path = os.environ["METADATA_OUT"]
+payload = {
+    "name": os.environ["META_NAME"],
+    "version": os.environ["META_VERSION"],
+    "download_url": os.environ["META_URL"],
+    "sha256": os.environ["META_SHA"],
+    "installed_binary_path": os.environ["META_BIN"],
+    "installed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+}
+dirname = os.path.dirname(path) or "."
+fd, tmp = tempfile.mkstemp(prefix=".deps-meta-", dir=dirname)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(payload, f, separators=(",", ":"))
+        f.write("\n")
+    os.replace(tmp, path)
+finally:
+    if os.path.exists(tmp):
+        os.unlink(tmp)
+PY
+}
+
 if [[ -f "$TARGET_BIN" && $FORCE -eq 0 ]]; then
   echo "VictoriaMetrics already installed: $TARGET_BIN"
+  write_metadata
   exit 0
 fi
 
-rm -rf "$TARGET_DIR"
 mkdir -p "$TARGET_DIR/bin"
 
 TEMP_ARCHIVE="$(mktemp -t "victoria-metrics-${VERSION}-XXXXXX")"
@@ -144,5 +183,6 @@ if [[ -z "$FOUND_BIN" ]]; then
 fi
 
 install -m 755 "$FOUND_BIN" "$TARGET_BIN"
+write_metadata
 
 echo "VictoriaMetrics installed to $TARGET_BIN"

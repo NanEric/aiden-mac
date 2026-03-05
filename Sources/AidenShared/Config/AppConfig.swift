@@ -27,11 +27,11 @@ public struct AppConfig: Codable, Sendable {
         return AppConfig(
             agent: Agent(host: "127.0.0.1", port: 18777),
             runtime: Runtime(
-                rootPath: home + "/Library/Application Support/Aiden/runtime/current",
+                rootPath: home + "/Library/Application Support/Aiden/runtime",
                 vmPath: "bin/victoria-metrics-prod",
                 collectorPath: "bin/otelcol",
                 vmArgs: ["-retentionPeriod=30d", "-httpListenAddr=:18428"],
-                collectorArgs: ["--config", home + "/Library/Application Support/Aiden/runtime/current/config/collector.yaml"]
+                collectorArgs: ["--config", home + "/Library/Application Support/Aiden/runtime/collector/config/collector.yaml"]
             ),
             polling: Polling(seconds: 5)
         )

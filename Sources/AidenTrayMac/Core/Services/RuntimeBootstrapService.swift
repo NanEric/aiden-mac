@@ -65,16 +65,16 @@ struct RuntimeBootstrapService {
     }
 
     private func resolveRuntimeRoot(home: URL) throws -> URL {
-        let installedRoot = home.appendingPathComponent("Library/Application Support/\(appName)/runtime/current")
-        if hasDependencies(root: installedRoot) {
-            return installedRoot
-        }
-
         if let overridden = ProcessInfo.processInfo.environment["AIDEN_DEV_RUNTIME_ROOT"], !overridden.isEmpty {
             let root = URL(fileURLWithPath: overridden)
             if hasDependencies(root: root) {
                 return root
             }
+        }
+
+        let installedRoot = home.appendingPathComponent("Library/Application Support/\(appName)/runtime")
+        if hasDependencies(root: installedRoot) {
+            return installedRoot
         }
 
         throw BootstrapError.runtimeDependenciesMissing(installedRoot.path)
@@ -83,7 +83,10 @@ struct RuntimeBootstrapService {
     private func hasDependencies(root: URL) -> Bool {
         let collector = root.appendingPathComponent("bin/otelcol").path
         let vm = root.appendingPathComponent("bin/victoria-metrics-prod").path
-        return fileManager.isExecutableFile(atPath: collector) && fileManager.isExecutableFile(atPath: vm)
+        let collectorConfig = root.appendingPathComponent("collector/config/collector.yaml").path
+        return fileManager.isExecutableFile(atPath: collector)
+            && fileManager.isExecutableFile(atPath: vm)
+            && fileManager.fileExists(atPath: collectorConfig)
     }
 
     private func upsertRuntimeConfig(path: URL, runtimeRoot: URL) throws {
@@ -110,7 +113,7 @@ struct RuntimeBootstrapService {
             ],
             "collectorArgs": [
                 "--config",
-                "\(runtimeRootPath)/config/collector.yaml"
+                "\(runtimeRootPath)/collector/config/collector.yaml"
             ]
         ]
         payload["polling"] = ["seconds": 5]
