@@ -20,5 +20,17 @@ final class MetricsQueryBuilderTests: XCTestCase {
         XCTAssertTrue(q.contains("user_email=\"u@example.com\""))
         XCTAssertTrue(q.contains("[365d:1h]"))
     }
+
+    func testBuildEarliestActivityTimeQueryForGemini() {
+        let q = MetricsQueryBuilder.earliestActivityTime(
+            serviceName: "gemini-cli",
+            userEmail: "u@example.com",
+            lookbackDays: 365
+        )
+        XCTAssertTrue(q.contains("min_over_time"))
+        XCTAssertTrue(q.contains("job=\"gemini-cli\""))
+        XCTAssertTrue(q.contains("user_email=\"u@example.com\""))
+        XCTAssertTrue(q.contains("[365d:1h]"))
+    }
 }
 #endif

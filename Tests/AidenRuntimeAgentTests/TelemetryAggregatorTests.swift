@@ -13,37 +13,23 @@ final class TelemetryAggregatorTests: XCTestCase {
         XCTAssertNil(snapshot.userActiveDays)
     }
 
-    func testActiveDaysUsesFloorWholeDays() {
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let twoDaysAndOneHourAgo = now.timeIntervalSince1970 - (2 * 86_400) - 3_600
-        let activeDays = TelemetryAggregator.activeDays(sinceEpochSeconds: twoDaysAndOneHourAgo, now: now)
-        XCTAssertEqual(activeDays, 2)
+    func testCalculateActiveDaysWithSpan() {
+        let t1 = 1_700_000_000.0 // Day 1
+        let t2 = t1 + 86_400.0 * 2.5 // 2.5 days later (should be 3rd day)
+        
+        let days = TelemetryAggregator.calculateActiveDays(earliest: t1, latest: t2, fallbackTimestamp: nil)
+        XCTAssertEqual(days, 3) 
     }
 
-    func testActiveDaysReturnsNilWhenTimestampMissing() {
-        XCTAssertNil(TelemetryAggregator.activeDays(sinceEpochSeconds: nil, now: Date()))
+    func testCalculateActiveDaysSameMomentIsOneDay() {
+        let t = 1_700_000_000.0
+        let days = TelemetryAggregator.calculateActiveDays(earliest: t, latest: t, fallbackTimestamp: nil)
+        XCTAssertEqual(days, 1)
     }
 
-    func testLatestActivityTimestampUsesGeminiActivityEpoch() {
-        let vmUser = VmClient.UserSample(email: "user@example.com", timestampSeconds: 1_700_000_000)
-        let ts = TelemetryAggregator.latestActivityTimestamp(
-            provider: .gemini,
-            vmUserSample: vmUser,
-            fallbackSample: nil,
-            geminiActivityEpoch: 1_699_000_000
-        )
-        XCTAssertEqual(ts, 1_699_000_000)
-    }
-
-    func testLatestActivityTimestampGeminiReturnsNilWhenNoActivityEpoch() {
-        let vmUser = VmClient.UserSample(email: "user@example.com", timestampSeconds: 1_700_000_000)
-        let ts = TelemetryAggregator.latestActivityTimestamp(
-            provider: .gemini,
-            vmUserSample: vmUser,
-            fallbackSample: nil,
-            geminiActivityEpoch: nil
-        )
-        XCTAssertNil(ts)
+    func testCalculateActiveDaysReturnsNilWhenNoData() {
+        let days = TelemetryAggregator.calculateActiveDays(earliest: nil, latest: nil, fallbackTimestamp: nil)
+        XCTAssertNil(days)
     }
 }
 #endif

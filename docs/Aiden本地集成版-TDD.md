@@ -70,7 +70,7 @@
   - `sum(gen_ai.client.token.usage_sum{gen_ai.token.type="input",service.name="<filter>"})`
   - `sum(gen_ai.client.token.usage_sum{gen_ai.token.type="output",service.name="<filter>"})`
 - 回退：`sum(last_over_time(...[<lookbackDays>d]))`
-- `lookbackDays = min(ceil(now - activeAt) + 1, MaxHistoryDays)`；无最新用户时使用 `MaxHistoryDays`。
+- `lookbackDays = 365`（或 MaxHistoryDays）；用于追溯用户最早活动时间。
 - Codex（`service.name=codex-cli`）由 Collector 将 `response.completed` 日志转换为同一指标：
   `gen_ai.client.token.usage_sum`，其中 `gen_ai.token.type` 为 `input` / `output`。
 - Codex 转换链路在 metrics pipeline 上增加 `deltatocumulative` + `metricstarttime`，
@@ -84,8 +84,11 @@
   - `topk(1, max by (user.email) (timestamp(last_over_time(...[<MaxHistoryDays>d]))))`
 
 ### 6.3 User Active
-- 取 Current User 查询结果时间戳 `value[0]`。
-- 计算：`floor(now - latestSampleTime)`（天）。
+- 获取 $T_{earliest}$：
+  `min_over_time(timestamp(gen_ai.client.token.usage_sum{job="<filter>",user_email="<userEmail>"})[<MaxHistoryDays>d:1d])`
+- 获取 $T_{latest}$：
+  `max_over_time(timestamp(gen_ai.client.token.usage_sum{job="<filter>",user_email="<userEmail>"})[<MaxHistoryDays>d:1h])`
+- 计算：`floor((T_latest - T_earliest) / 86400) + 1`（天）。
 
 ### 6.4 Context
 1. 选当前用户活跃 `session.id`（瞬时优先，回退窗口）。
