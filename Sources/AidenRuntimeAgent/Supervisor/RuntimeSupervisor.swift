@@ -18,6 +18,20 @@ final class RuntimeSupervisor {
         lastError = collector.lastError ?? vm.lastError
     }
 
+    func checkAndRecover() {
+        let status = self.status()
+        if !status.online {
+            // If offline, try to start missing components
+            if !status.vmHealthy {
+                vm.restart()
+            }
+            if !status.collectorHealthy {
+                collector.restart()
+            }
+            lastError = collector.lastError ?? vm.lastError
+        }
+    }
+
     func restartAll() {
         vm.restart()
         collector.restart()
@@ -28,6 +42,20 @@ final class RuntimeSupervisor {
         let collectorHealthy = collector.isRunning && isCollectorReachable()
         let vmHealthy = vm.isRunning && isVmHealthy()
         let online = collectorHealthy && vmHealthy
+        
+        var message: String? = nil
+        if !online {
+            if !collectorHealthy && !vmHealthy {
+                message = "Infrastructure is restarting..."
+            } else if !collectorHealthy {
+                message = "Recovering telemetry collector..."
+            } else if !vmHealthy {
+                message = "Recovering metrics storage..."
+            }
+        } else {
+            message = "All systems operational"
+        }
+
         if !collectorHealthy, collector.lastError == nil {
             lastError = "Collector endpoint 127.0.0.1:4317 is unreachable"
         } else if !vmHealthy, vm.lastError == nil {
@@ -35,11 +63,13 @@ final class RuntimeSupervisor {
         } else {
             lastError = collector.lastError ?? vm.lastError
         }
+
         return RuntimeStatus(
             online: online,
             collectorHealthy: collectorHealthy,
             vmHealthy: vmHealthy,
             lastError: lastError,
+            message: message,
             updatedAt: Date()
         )
     }

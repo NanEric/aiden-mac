@@ -58,7 +58,7 @@ struct AidenRuntimeAgentMain {
 
             Task.detached {
                 while true {
-                    supervisor.ensureStarted()
+                    supervisor.checkAndRecover()
                     let status = supervisor.status()
                     await state.setStatus(status)
                     for provider in CliProvider.allCases {

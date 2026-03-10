@@ -77,7 +77,8 @@ final class RootTrayViewModel: ObservableObject {
                 let status = await waitForRuntimeOnline()
                 guard isCurrentGeneration(generation) else { return }
                 if !status.online {
-                    setPhase(.startupError(status.lastError ?? "Runtime is offline"))
+                    let errorMessage = status.message ?? status.lastError ?? "Runtime is offline"
+                    setPhase(.startupError(errorMessage))
                     return
                 }
 
